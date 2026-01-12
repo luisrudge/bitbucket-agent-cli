@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.exe
+
+# Bun
+bun.lockb
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test coverage
+coverage/
+
+# Environment (don't commit credentials!)
+.env
+.env.local
+.env.*.local
+
+# Ralph archives (keep progress but not old runs)
+ralph/
