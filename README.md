@@ -6,7 +6,14 @@ Bitbucket CLI for AI agents (and maybe humans).
 
 ## Authentication
 
-Create an [App Password](https://bitbucket.org/account/settings/app-passwords/) with Account, Repositories, and Pull requests permissions (read for viewing, write for creating PRs).
+Create an [App Password](https://bitbucket.org/account/settings/app-passwords/) with the following scopes:
+
+| Scope                         | Required for                                   |
+| ----------------------------- | ---------------------------------------------- |
+| `read:account`                | `auth status`                                  |
+| `read:repository:bitbucket`   | Repo info, default branch detection            |
+| `read:pullrequest:bitbucket`  | `pr list`, `pr view`, `pr comments`, `pr diff` |
+| `write:pullrequest:bitbucket` | `pr create`                                    |
 
 ```bash
 # Option 1: Environment variables
