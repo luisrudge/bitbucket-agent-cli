@@ -1,7 +1,7 @@
 // bitbucket-agent-cli - Bitbucket CLI for coding agents
 import { program, type Command } from "commander";
 import { login, status, logout } from "./commands/auth.ts";
-import { list, view, comments, diff } from "./commands/pr.ts";
+import { list, view, comments, diff, create } from "./commands/pr.ts";
 import { api } from "./commands/api.ts";
 import { setJsonOutput, outputError } from "./output.ts";
 
@@ -73,6 +73,17 @@ prCmd
   .description("View PR diff")
   .option("-r, --repo <repo>", "Workspace/repo (auto-detected from git remote)")
   .action(diff);
+
+prCmd
+  .command("create")
+  .description("Create a new pull request")
+  .option("-t, --title <title>", "PR title (defaults to branch name)")
+  .option("-s, --source <branch>", "Source branch (defaults to current branch)")
+  .option("-d, --destination <branch>", "Destination branch (defaults to main)")
+  .option("-m, --description <text>", "PR description")
+  .option("-c, --close", "Close source branch after merge")
+  .option("-r, --repo <repo>", "Workspace/repo (auto-detected from git remote)")
+  .action(create);
 
 // API command
 program

@@ -6,7 +6,7 @@ Bitbucket CLI for AI agents (and maybe humans).
 
 ## Authentication
 
-Create an [App Password](https://bitbucket.org/account/settings/app-passwords/) with Account, Repositories, and Pull requests read permissions.
+Create an [App Password](https://bitbucket.org/account/settings/app-passwords/) with Account, Repositories, and Pull requests permissions (read for viewing, write for creating PRs).
 
 ```bash
 # Option 1: Environment variables
@@ -33,6 +33,9 @@ bunx bitbucket-agent-cli pr list --state merged         # Filter by state
 bunx bitbucket-agent-cli pr view 123                    # PR details + reviewers
 bunx bitbucket-agent-cli pr comments 123                # Comments with resolved/unresolved status
 bunx bitbucket-agent-cli pr diff 123                    # PR diff
+bunx bitbucket-agent-cli pr create                      # Create PR from current branch to main
+bunx bitbucket-agent-cli pr create -t "My PR" -d dev    # Create PR with title, targeting dev branch
+bunx bitbucket-agent-cli pr create -s feature -m "Description" -c  # Specify source, description, close branch
 
 # Raw API
 bunx bitbucket-agent-cli api /user                      # Any Bitbucket 2.0 endpoint
