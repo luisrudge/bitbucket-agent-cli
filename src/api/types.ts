@@ -122,6 +122,18 @@ export interface PaginatedResponse<T> {
 }
 
 /**
+ * Repository information
+ */
+export interface Repository {
+  full_name: string;
+  name: string;
+  mainbranch?: {
+    name: string;
+    type: string;
+  };
+}
+
+/**
  * Request body for creating a pull request
  */
 export interface CreatePullRequestBody {

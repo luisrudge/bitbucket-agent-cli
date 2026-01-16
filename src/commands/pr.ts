@@ -8,6 +8,7 @@ import type {
   CreatePullRequestBody,
   PaginatedResponse,
   PullRequest,
+  Repository,
 } from "../api/types.ts";
 
 /**
@@ -509,11 +510,25 @@ function formatCreatePrText(pr: CreatePrOutput): string {
 }
 
 /**
+ * Get the default branch for a repository
+ */
+async function getDefaultBranch(client: ApiClient, repo: RepoInfo): Promise<string> {
+  try {
+    const repoInfo = await client.get<Repository>(`/repositories/${repo.workspace}/${repo.repo}`);
+    return repoInfo.mainbranch?.name ?? "main";
+  } catch {
+    // Fall back to "main" if we can't fetch repo info
+    return "main";
+  }
+}
+
+/**
  * Create a new pull request
  */
 export async function create(options: CreateOptions): Promise<void> {
   const auth = await requireAuth();
   const repo = await getRepo(options);
+  const client = new ApiClient(auth.username, auth.appPassword);
 
   // Determine source branch
   let sourceBranch = options.source;
@@ -527,8 +542,8 @@ export async function create(options: CreateOptions): Promise<void> {
     }
   }
 
-  // Validate not creating PR from main/master to itself
-  const destBranch = options.destination ?? "main";
+  // Determine destination branch (from option or repo's default branch)
+  const destBranch = options.destination ?? (await getDefaultBranch(client, repo));
   if (sourceBranch === destBranch) {
     return outputError(
       `Source branch "${sourceBranch}" cannot be the same as destination branch "${destBranch}".`,
@@ -539,7 +554,6 @@ export async function create(options: CreateOptions): Promise<void> {
   // Determine title
   const title = options.title ?? sourceBranch;
 
-  const client = new ApiClient(auth.username, auth.appPassword);
   const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests`;
 
   const body: CreatePullRequestBody = {
