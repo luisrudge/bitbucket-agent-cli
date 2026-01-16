@@ -51,6 +51,10 @@ description: Release a new version to npm and GitHub. Use when the user wants to
     - Summarize the changes into human-readable release notes
     - Group by type (features, fixes, docs, etc.) if applicable
     - Keep it concise
+    - For each commit/PR, include a link and the author:
+      - For PRs: `#123 by @username`
+      - For commits: `abc1234 by @username`
+    - Get commit authors with: `git log <previous-tag>..HEAD --format="%h %s (%an)"`
 
 11. **Create GitHub release**:
 
