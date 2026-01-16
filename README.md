@@ -10,7 +10,7 @@ Create an [App Password](https://bitbucket.org/account/settings/app-passwords/) 
 
 | Scope                         | Required for                                   |
 | ----------------------------- | ---------------------------------------------- |
-| `read:account`                | `auth status`                                  |
+| `read:user:bitbucket`         | `auth login`, `auth status`                    |
 | `read:repository:bitbucket`   | Repo info, default branch detection            |
 | `read:pullrequest:bitbucket`  | `pr list`, `pr view`, `pr comments`, `pr diff` |
 | `write:pullrequest:bitbucket` | `pr create`                                    |
