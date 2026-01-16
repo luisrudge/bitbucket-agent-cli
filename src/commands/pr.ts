@@ -1,9 +1,14 @@
-// PR commands: list, view, comments, diff
-import { getRepoFromGit, type RepoInfo } from "../git.ts";
+// PR commands: list, view, comments, diff, create
+import { getCurrentBranch, getRepoFromGit, type RepoInfo } from "../git.ts";
 import { output, outputError, formatTimestamp } from "../output.ts";
 import { getAuth } from "../config.ts";
-import { ApiClient, AuthError, NotFoundError } from "../api/client.ts";
-import type { Comment, PaginatedResponse, PullRequest } from "../api/types.ts";
+import { ApiClient, AuthError, ForbiddenError, NotFoundError } from "../api/client.ts";
+import type {
+  Comment,
+  CreatePullRequestBody,
+  PaginatedResponse,
+  PullRequest,
+} from "../api/types.ts";
 
 /**
  * Options for commands that need repo
@@ -44,7 +49,10 @@ async function getRepo(options: RepoOptions): Promise<RepoInfo> {
   if (options.repo) {
     const parsed = parseRepoFlag(options.repo);
     if (!parsed) {
-      outputError(`Invalid --repo format: "${options.repo}". Expected format: workspace/repo`, 4);
+      return outputError(
+        `Invalid --repo format: "${options.repo}". Expected format: workspace/repo`,
+        4,
+      );
     }
     return parsed;
   }
@@ -56,7 +64,7 @@ async function getRepo(options: RepoOptions): Promise<RepoInfo> {
   }
 
   // Neither option nor git remote available
-  outputError(
+  return outputError(
     "Could not determine repository. Use --repo workspace/repo or run from a directory with a Bitbucket git remote.",
     4,
   );
@@ -65,10 +73,13 @@ async function getRepo(options: RepoOptions): Promise<RepoInfo> {
 /**
  * Require auth credentials or exit with error
  */
-async function requireAuth(): Promise<{ username: string; appPassword: string }> {
+async function requireAuth(): Promise<{
+  username: string;
+  appPassword: string;
+}> {
   const auth = await getAuth();
   if (!auth) {
-    outputError(
+    return outputError(
       "Authentication required. Run 'bitbucket-agent-cli auth login' or set BB_USERNAME and BB_APP_PASSWORD environment variables.",
       2,
     );
@@ -82,7 +93,7 @@ async function requireAuth(): Promise<{ username: string; appPassword: string }>
 function parsePrId(prIdArg: string): number {
   const prId = parseInt(prIdArg, 10);
   if (isNaN(prId) || prId <= 0) {
-    outputError(`Invalid PR ID: "${prIdArg}". Must be a positive integer.`, 4);
+    return outputError(`Invalid PR ID: "${prIdArg}". Must be a positive integer.`, 4);
   }
   return prId;
 }
@@ -93,6 +104,12 @@ function parsePrId(prIdArg: string): number {
 function handleApiError(error: unknown, repo: RepoInfo, prId?: number): never {
   if (error instanceof AuthError) {
     outputError("Authentication failed. Check your credentials.", 2);
+  }
+  if (error instanceof ForbiddenError) {
+    outputError(
+      `Insufficient permissions to access ${repo.workspace}/${repo.repo}. Check your app password permissions.`,
+      2,
+    );
   }
   if (error instanceof NotFoundError) {
     const resource = prId
@@ -162,7 +179,7 @@ export async function list(options: ListOptions): Promise<void> {
   // Validate state
   const lowerState = options.state.toLowerCase() as PrState;
   if (!VALID_STATES.includes(lowerState)) {
-    outputError(
+    return outputError(
       `Invalid --state value: "${options.state}". Valid values: ${VALID_STATES.join(", ")}`,
       4,
     );
@@ -452,5 +469,119 @@ export async function diff(prIdArg: string, options: RepoOptions): Promise<void>
     process.exit(0);
   } catch (error) {
     handleApiError(error, repo, prId);
+  }
+}
+
+/**
+ * Options for create command
+ */
+interface CreateOptions extends RepoOptions {
+  title?: string;
+  source?: string;
+  destination?: string;
+  description?: string;
+  close?: boolean;
+}
+
+/**
+ * Create PR output shape
+ */
+interface CreatePrOutput {
+  id: number;
+  title: string;
+  state: string;
+  source: string;
+  destination: string;
+  url: string | null;
+}
+
+/**
+ * Format created PR as human-readable text
+ */
+function formatCreatePrText(pr: CreatePrOutput): string {
+  const lines = [`Created PR #${pr.id}: ${pr.title}`, `Branch: ${pr.source} -> ${pr.destination}`];
+
+  if (pr.url) {
+    lines.push(`URL: ${pr.url}`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Create a new pull request
+ */
+export async function create(options: CreateOptions): Promise<void> {
+  const auth = await requireAuth();
+  const repo = await getRepo(options);
+
+  // Determine source branch
+  let sourceBranch = options.source;
+  if (!sourceBranch) {
+    sourceBranch = await getCurrentBranch();
+    if (!sourceBranch) {
+      return outputError(
+        "Could not determine source branch. Use --source to specify the branch.",
+        4,
+      );
+    }
+  }
+
+  // Validate not creating PR from main/master to itself
+  const destBranch = options.destination ?? "main";
+  if (sourceBranch === destBranch) {
+    return outputError(
+      `Source branch "${sourceBranch}" cannot be the same as destination branch "${destBranch}".`,
+      4,
+    );
+  }
+
+  // Determine title
+  const title = options.title ?? sourceBranch;
+
+  const client = new ApiClient(auth.username, auth.appPassword);
+  const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests`;
+
+  const body: CreatePullRequestBody = {
+    title,
+    source: {
+      branch: {
+        name: sourceBranch,
+      },
+    },
+  };
+
+  if (options.destination) {
+    body.destination = {
+      branch: {
+        name: options.destination,
+      },
+    };
+  }
+
+  if (options.description) {
+    body.description = options.description;
+  }
+
+  if (options.close) {
+    body.close_source_branch = true;
+  }
+
+  try {
+    const pr = await client.post<PullRequest>(endpoint, body);
+
+    const prOutput: CreatePrOutput = {
+      id: pr.id,
+      title: pr.title,
+      state: pr.state,
+      source: pr.source.branch.name,
+      destination: pr.destination.branch.name,
+      url: pr.links?.html?.href ?? null,
+    };
+
+    output(formatCreatePrText(prOutput), prOutput);
+    process.exit(0);
+  } catch (error) {
+    handleApiError(error, repo);
   }
 }

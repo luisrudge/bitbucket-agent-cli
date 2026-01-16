@@ -110,6 +110,35 @@ export class ApiClient {
   }
 
   /**
+   * Make a POST request with JSON body and return parsed JSON
+   * @param endpoint API endpoint path
+   * @param body Request body to send as JSON
+   * @returns Parsed JSON response
+   * @throws AuthError for 401 responses
+   * @throws NotFoundError for 404 responses
+   * @throws ForbiddenError for 403 responses
+   */
+  async post<T = unknown>(endpoint: string, body: unknown): Promise<T> {
+    const url = `${BASE_URL}${endpoint}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: this.authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+
+    const data: unknown = await response.json();
+    return data as T;
+  }
+
+  /**
    * Make a GET request and return raw text (for diff endpoint)
    * @param endpoint API endpoint path
    * @returns Raw response text

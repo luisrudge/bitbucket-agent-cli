@@ -120,3 +120,22 @@ export interface PaginatedResponse<T> {
   next?: string;
   size?: number;
 }
+
+/**
+ * Request body for creating a pull request
+ */
+export interface CreatePullRequestBody {
+  title: string;
+  source: {
+    branch: {
+      name: string;
+    };
+  };
+  destination?: {
+    branch: {
+      name: string;
+    };
+  };
+  description?: string;
+  close_source_branch?: boolean;
+}
