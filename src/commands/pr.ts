@@ -1,8 +1,8 @@
-// PR commands: list, view, comments, diff
-import { getRepoFromGit, type RepoInfo } from "../git.ts";
+// PR commands: list, view, comments, diff, create
+import { getCurrentBranch, getRepoFromGit, type RepoInfo } from "../git.ts";
 import { output, outputError, formatTimestamp } from "../output.ts";
 import { getAuth } from "../config.ts";
-import { ApiClient, AuthError, NotFoundError } from "../api/client.ts";
+import { ApiClient, AuthError, ForbiddenError, NotFoundError } from "../api/client.ts";
 import type {
   Comment,
   CreatePullRequestBody,
@@ -49,7 +49,10 @@ async function getRepo(options: RepoOptions): Promise<RepoInfo> {
   if (options.repo) {
     const parsed = parseRepoFlag(options.repo);
     if (!parsed) {
-      outputError(`Invalid --repo format: "${options.repo}". Expected format: workspace/repo`, 4);
+      return outputError(
+        `Invalid --repo format: "${options.repo}". Expected format: workspace/repo`,
+        4,
+      );
     }
     return parsed;
   }
@@ -61,7 +64,7 @@ async function getRepo(options: RepoOptions): Promise<RepoInfo> {
   }
 
   // Neither option nor git remote available
-  outputError(
+  return outputError(
     "Could not determine repository. Use --repo workspace/repo or run from a directory with a Bitbucket git remote.",
     4,
   );
@@ -76,7 +79,7 @@ async function requireAuth(): Promise<{
 }> {
   const auth = await getAuth();
   if (!auth) {
-    outputError(
+    return outputError(
       "Authentication required. Run 'bitbucket-agent-cli auth login' or set BB_USERNAME and BB_APP_PASSWORD environment variables.",
       2,
     );
@@ -90,7 +93,7 @@ async function requireAuth(): Promise<{
 function parsePrId(prIdArg: string): number {
   const prId = parseInt(prIdArg, 10);
   if (isNaN(prId) || prId <= 0) {
-    outputError(`Invalid PR ID: "${prIdArg}". Must be a positive integer.`, 4);
+    return outputError(`Invalid PR ID: "${prIdArg}". Must be a positive integer.`, 4);
   }
   return prId;
 }
@@ -101,6 +104,12 @@ function parsePrId(prIdArg: string): number {
 function handleApiError(error: unknown, repo: RepoInfo, prId?: number): never {
   if (error instanceof AuthError) {
     outputError("Authentication failed. Check your credentials.", 2);
+  }
+  if (error instanceof ForbiddenError) {
+    outputError(
+      `Insufficient permissions to access ${repo.workspace}/${repo.repo}. Check your app password permissions.`,
+      2,
+    );
   }
   if (error instanceof NotFoundError) {
     const resource = prId
@@ -170,7 +179,7 @@ export async function list(options: ListOptions): Promise<void> {
   // Validate state
   const lowerState = options.state.toLowerCase() as PrState;
   if (!VALID_STATES.includes(lowerState)) {
-    outputError(
+    return outputError(
       `Invalid --state value: "${options.state}". Valid values: ${VALID_STATES.join(", ")}`,
       4,
     );
@@ -500,26 +509,6 @@ function formatCreatePrText(pr: CreatePrOutput): string {
 }
 
 /**
- * Get current git branch name
- */
-async function getCurrentBranch(): Promise<string | undefined> {
-  try {
-    const proc = Bun.spawn(["git", "rev-parse", "--abbrev-ref", "HEAD"], {
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const output = await new Response(proc.stdout).text();
-    const exitCode = await proc.exited;
-    if (exitCode === 0) {
-      return output.trim();
-    }
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * Create a new pull request
  */
 export async function create(options: CreateOptions): Promise<void> {
@@ -531,14 +520,17 @@ export async function create(options: CreateOptions): Promise<void> {
   if (!sourceBranch) {
     sourceBranch = await getCurrentBranch();
     if (!sourceBranch) {
-      outputError("Could not determine source branch. Use --source to specify the branch.", 4);
+      return outputError(
+        "Could not determine source branch. Use --source to specify the branch.",
+        4,
+      );
     }
   }
 
   // Validate not creating PR from main/master to itself
   const destBranch = options.destination ?? "main";
   if (sourceBranch === destBranch) {
-    outputError(
+    return outputError(
       `Source branch "${sourceBranch}" cannot be the same as destination branch "${destBranch}".`,
       4,
     );

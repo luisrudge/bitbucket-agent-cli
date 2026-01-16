@@ -71,6 +71,21 @@ export function parseRemoteUrl(url: string): RepoInfo | null {
 }
 
 /**
+ * Get current git branch name
+ */
+export async function getCurrentBranch(): Promise<string | undefined> {
+  try {
+    const result = await $`git rev-parse --abbrev-ref HEAD`.quiet();
+    if (result.exitCode === 0) {
+      return result.text().trim();
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Get repository info from git remote.
  * Checks if in a git repo, gets the origin URL, and parses it.
  * Returns null if not in a git repo or not a Bitbucket remote.

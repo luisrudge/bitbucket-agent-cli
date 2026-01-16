@@ -138,7 +138,4 @@ export interface CreatePullRequestBody {
   };
   description?: string;
   close_source_branch?: boolean;
-  reviewers?: Array<{
-    uuid: string;
-  }>;
 }
