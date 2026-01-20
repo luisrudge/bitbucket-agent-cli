@@ -13,7 +13,7 @@ Create an [App Password](https://bitbucket.org/account/settings/app-passwords/) 
 | `read:user:bitbucket`         | `auth login`, `auth status`                    |
 | `read:repository:bitbucket`   | Repo info, default branch detection            |
 | `read:pullrequest:bitbucket`  | `pr list`, `pr view`, `pr comments`, `pr diff` |
-| `write:pullrequest:bitbucket` | `pr create`                                    |
+| `write:pullrequest:bitbucket` | `pr create`, `pr comment *`, `pr task *`       |
 
 ```bash
 # Option 1: Environment variables
@@ -38,11 +38,20 @@ bunx bitbucket-agent-cli auth logout
 bunx bitbucket-agent-cli pr list                        # List open PRs (auto-detects repo)
 bunx bitbucket-agent-cli pr list --state merged         # Filter by state
 bunx bitbucket-agent-cli pr view 123                    # PR details + reviewers
-bunx bitbucket-agent-cli pr comments 123                # Comments with resolved/unresolved status
+bunx bitbucket-agent-cli pr comments 123                # Comments with tasks, resolved/unresolved status
 bunx bitbucket-agent-cli pr diff 123                    # PR diff
 bunx bitbucket-agent-cli pr create                      # Create PR from current branch to main
 bunx bitbucket-agent-cli pr create -t "My PR" -d dev    # Create PR with title, targeting dev branch
-bunx bitbucket-agent-cli pr create -s feature -m "Description" -c  # Specify source, description, close branch
+
+# Comments
+bunx bitbucket-agent-cli pr comment add 123 -m "LGTM!"              # Add a comment
+bunx bitbucket-agent-cli pr comment add 123 -m "Fixed" -p 456       # Reply to comment #456
+bunx bitbucket-agent-cli pr comment resolve 123 456                 # Resolve a comment thread
+bunx bitbucket-agent-cli pr comment unresolve 123 456               # Reopen a comment thread
+
+# Tasks
+bunx bitbucket-agent-cli pr task resolve 123 789                    # Resolve a task
+bunx bitbucket-agent-cli pr task unresolve 123 789                  # Reopen a task
 
 # Raw API
 bunx bitbucket-agent-cli api /user                      # Any Bitbucket 2.0 endpoint
