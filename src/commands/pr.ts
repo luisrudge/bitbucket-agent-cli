@@ -5,10 +5,12 @@ import { getAuth } from "../config.ts";
 import { ApiClient, AuthError, ForbiddenError, NotFoundError } from "../api/client.ts";
 import type {
   Comment,
+  CreateCommentBody,
   CreatePullRequestBody,
   PaginatedResponse,
   PullRequest,
   Repository,
+  Task,
 } from "../api/types.ts";
 
 /**
@@ -100,9 +102,21 @@ function parsePrId(prIdArg: string): number {
 }
 
 /**
+ * Context for API error handling
+ */
+interface ErrorContext {
+  prId?: number;
+  commentId?: number;
+  taskId?: number;
+}
+
+/**
  * Handle common API errors for PR commands
  */
-function handleApiError(error: unknown, repo: RepoInfo, prId?: number): never {
+function handleApiError(error: unknown, repo: RepoInfo, context?: ErrorContext | number): never {
+  // Support legacy call signature: handleApiError(error, repo, prId)
+  const ctx: ErrorContext = typeof context === "number" ? { prId: context } : (context ?? {});
+
   if (error instanceof AuthError) {
     outputError("Authentication failed. Check your credentials.", 2);
   }
@@ -113,9 +127,16 @@ function handleApiError(error: unknown, repo: RepoInfo, prId?: number): never {
     );
   }
   if (error instanceof NotFoundError) {
-    const resource = prId
-      ? `Pull request not found: ${repo.workspace}/${repo.repo}#${prId}`
-      : `Repository not found: ${repo.workspace}/${repo.repo}`;
+    let resource: string;
+    if (ctx.taskId) {
+      resource = `Task not found: #${ctx.taskId} on PR #${ctx.prId}`;
+    } else if (ctx.commentId) {
+      resource = `Comment not found: #${ctx.commentId} on PR #${ctx.prId}`;
+    } else if (ctx.prId) {
+      resource = `Pull request not found: ${repo.workspace}/${repo.repo}#${ctx.prId}`;
+    } else {
+      resource = `Repository not found: ${repo.workspace}/${repo.repo}`;
+    }
     outputError(resource, 3);
   }
   throw error;
@@ -309,6 +330,16 @@ export async function view(prIdArg: string, options: RepoOptions): Promise<void>
 }
 
 /**
+ * Formatted task for output
+ */
+interface FormattedTask {
+  id: number;
+  state: string;
+  content: string;
+  creator: string;
+}
+
+/**
  * Formatted comment for output
  */
 interface FormattedComment {
@@ -320,12 +351,13 @@ interface FormattedComment {
   resolved: boolean;
   file: string | null;
   line: number | null;
+  tasks: FormattedTask[];
 }
 
 /**
- * Format a comment for output
+ * Format a comment for output (tasks added separately)
  */
-function formatComment(comment: Comment): FormattedComment {
+function formatComment(comment: Comment, tasks: FormattedTask[] = []): FormattedComment {
   return {
     id: comment.id,
     parent: comment.parent?.id ?? null,
@@ -335,31 +367,32 @@ function formatComment(comment: Comment): FormattedComment {
     resolved: comment.resolution !== undefined,
     file: comment.inline?.path ?? null,
     line: comment.inline?.to ?? comment.inline?.from ?? null,
+    tasks,
   };
 }
 
 /**
- * Fetch all pages of comments
+ * Fetch all pages of a paginated endpoint
  */
-async function fetchAllComments(client: ApiClient, endpoint: string): Promise<Comment[]> {
-  const allComments: Comment[] = [];
+async function fetchAllPages<T>(client: ApiClient, endpoint: string): Promise<T[]> {
+  const allItems: T[] = [];
   let nextUrl: string | undefined = endpoint;
 
   while (nextUrl !== undefined) {
     const urlToFetch: string = nextUrl;
-    let response: PaginatedResponse<Comment>;
+    let response: PaginatedResponse<T>;
 
     if (urlToFetch.startsWith("http")) {
-      response = await client.getFullUrl<PaginatedResponse<Comment>>(urlToFetch);
+      response = await client.getFullUrl<PaginatedResponse<T>>(urlToFetch);
     } else {
-      response = await client.get<PaginatedResponse<Comment>>(urlToFetch);
+      response = await client.get<PaginatedResponse<T>>(urlToFetch);
     }
 
-    allComments.push(...response.values);
+    allItems.push(...response.values);
     nextUrl = response.next;
   }
 
-  return allComments;
+  return allItems;
 }
 
 /**
@@ -380,10 +413,19 @@ function formatCommentsText(prId: number, data: CommentsOutput): string {
     return `No comments on PR #${prId}`;
   }
 
-  const lines = [
-    `Comments on PR #${prId} (${data.total} total, ${data.resolved} resolved, ${data.unresolved} unresolved)`,
-    "",
-  ];
+  // Count total tasks
+  const totalTasks = data.comments.reduce((sum, c) => sum + c.tasks.length, 0);
+  const resolvedTasks = data.comments.reduce(
+    (sum, c) => sum + c.tasks.filter((t) => t.state === "RESOLVED").length,
+    0,
+  );
+
+  let header = `Comments on PR #${prId} (${data.total} total, ${data.resolved} resolved, ${data.unresolved} unresolved)`;
+  if (totalTasks > 0) {
+    header += `\nTasks: ${resolvedTasks}/${totalTasks} resolved`;
+  }
+
+  const lines = [header, ""];
 
   // Build a map of parent -> children for threading
   const childrenMap = new Map<number | null, FormattedComment[]>();
@@ -403,9 +445,16 @@ function formatCommentsText(prId: number, data: CommentsOutput): string {
       const locationTag = comment.file ? ` ${comment.file}:${comment.line}` : "";
 
       lines.push(
-        `${indent}[#${comment.id}] ${comment.author} (${comment.created})${resolvedTag}:${locationTag}`,
+        `${indent}[#${comment.id}] ${comment.author} (${formatTimestamp(comment.created)})${resolvedTag}${locationTag}`,
       );
       lines.push(`${indent}  ${comment.content}`);
+
+      // Show tasks for this comment
+      for (const task of comment.tasks) {
+        const taskState = task.state === "RESOLVED" ? "[x]" : "[ ]";
+        lines.push(`${indent}  ${taskState} Task #${task.id}: ${task.content}`);
+      }
+
       lines.push("");
 
       // Recurse for replies
@@ -427,10 +476,32 @@ export async function comments(prIdArg: string, options: RepoOptions): Promise<v
   const repo = await getRepo(options);
 
   const client = new ApiClient(auth.username, auth.appPassword);
-  const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/comments`;
+  const commentsEndpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/comments`;
+  const tasksEndpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/tasks`;
 
   try {
-    const allComments = await fetchAllComments(client, endpoint);
+    // Fetch comments and tasks in parallel
+    const [allComments, allTasks] = await Promise.all([
+      fetchAllPages<Comment>(client, commentsEndpoint),
+      fetchAllPages<Task>(client, tasksEndpoint),
+    ]);
+
+    // Build a map of comment ID -> tasks
+    const tasksByCommentId = new Map<number, FormattedTask[]>();
+    for (const task of allTasks) {
+      if (task.comment?.id) {
+        const commentId = task.comment.id;
+        if (!tasksByCommentId.has(commentId)) {
+          tasksByCommentId.set(commentId, []);
+        }
+        tasksByCommentId.get(commentId)!.push({
+          id: task.id,
+          state: task.state,
+          content: task.content.raw,
+          creator: task.creator.display_name,
+        });
+      }
+    }
 
     // Filter out deleted comments
     const activeComments = allComments.filter((c) => !c.deleted);
@@ -439,11 +510,16 @@ export async function comments(prIdArg: string, options: RepoOptions): Promise<v
     const resolved = activeComments.filter((c) => c.resolution !== undefined).length;
     const unresolved = activeComments.length - resolved;
 
+    // Format comments with their tasks
+    const formattedComments = activeComments.map((comment) =>
+      formatComment(comment, tasksByCommentId.get(comment.id) ?? []),
+    );
+
     const commentsOutput: CommentsOutput = {
       total: activeComments.length,
       resolved,
       unresolved,
-      comments: activeComments.map(formatComment),
+      comments: formattedComments,
     };
 
     output(formatCommentsText(prId, commentsOutput), commentsOutput);
@@ -597,5 +673,210 @@ export async function create(options: CreateOptions): Promise<void> {
     process.exit(0);
   } catch (error) {
     handleApiError(error, repo);
+  }
+}
+
+/**
+ * Options for add comment command
+ */
+interface AddCommentOptions extends RepoOptions {
+  message: string;
+  parent?: string;
+}
+
+/**
+ * Add comment output shape
+ */
+interface AddCommentOutput {
+  id: number;
+  parent: number | null;
+  content: string;
+}
+
+/**
+ * Format added comment as human-readable text
+ */
+function formatAddCommentText(data: AddCommentOutput, prId: number): string {
+  if (data.parent) {
+    return `Added reply #${data.id} to comment #${data.parent} on PR #${prId}`;
+  }
+  return `Added comment #${data.id} on PR #${prId}`;
+}
+
+/**
+ * Add a comment or reply to a pull request
+ */
+export async function addComment(prIdArg: string, options: AddCommentOptions): Promise<void> {
+  const prId = parsePrId(prIdArg);
+  const auth = await requireAuth();
+  const repo = await getRepo(options);
+
+  // Validate message
+  if (!options.message || options.message.trim() === "") {
+    return outputError("Comment message cannot be empty. Use --message to provide content.", 4);
+  }
+
+  // Parse parent comment ID if provided
+  let parentId: number | undefined;
+  if (options.parent) {
+    parentId = parseInt(options.parent, 10);
+    if (isNaN(parentId) || parentId <= 0) {
+      return outputError(
+        `Invalid parent comment ID: "${options.parent}". Must be a positive integer.`,
+        4,
+      );
+    }
+  }
+
+  const client = new ApiClient(auth.username, auth.appPassword);
+  const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/comments`;
+
+  const body: CreateCommentBody = {
+    content: {
+      raw: options.message,
+    },
+  };
+
+  if (parentId) {
+    body.parent = { id: parentId };
+  }
+
+  try {
+    const comment = await client.post<Comment>(endpoint, body);
+
+    const commentOutput: AddCommentOutput = {
+      id: comment.id,
+      parent: comment.parent?.id ?? null,
+      content: comment.content.raw,
+    };
+
+    output(formatAddCommentText(commentOutput, prId), commentOutput);
+    process.exit(0);
+  } catch (error) {
+    handleApiError(error, repo, prId);
+  }
+}
+
+/**
+ * Options for resolve comment command
+ */
+interface ResolveCommentOptions extends RepoOptions {
+  unresolve?: boolean;
+}
+
+/**
+ * Resolve comment output shape
+ */
+interface ResolveCommentOutput {
+  commentId: number;
+  resolved: boolean;
+}
+
+/**
+ * Format resolve comment result as human-readable text
+ */
+function formatResolveCommentText(data: ResolveCommentOutput, prId: number): string {
+  const action = data.resolved ? "Resolved" : "Reopened";
+  return `${action} comment #${data.commentId} on PR #${prId}`;
+}
+
+/**
+ * Resolve or unresolve a comment thread
+ */
+export async function resolveComment(
+  prIdArg: string,
+  commentIdArg: string,
+  options: ResolveCommentOptions,
+): Promise<void> {
+  const prId = parsePrId(prIdArg);
+  const auth = await requireAuth();
+  const repo = await getRepo(options);
+
+  // Parse and validate comment ID
+  const commentId = parseInt(commentIdArg, 10);
+  if (isNaN(commentId) || commentId <= 0) {
+    return outputError(`Invalid comment ID: "${commentIdArg}". Must be a positive integer.`, 4);
+  }
+
+  const client = new ApiClient(auth.username, auth.appPassword);
+  const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/comments/${commentId}/resolve`;
+
+  try {
+    if (options.unresolve) {
+      await client.delete(endpoint);
+    } else {
+      await client.post(endpoint, {});
+    }
+
+    const resolveOutput: ResolveCommentOutput = {
+      commentId,
+      resolved: !options.unresolve,
+    };
+
+    output(formatResolveCommentText(resolveOutput, prId), resolveOutput);
+    process.exit(0);
+  } catch (error) {
+    handleApiError(error, repo, { prId, commentId });
+  }
+}
+
+/**
+ * Options for resolve task command
+ */
+interface ResolveTaskOptions extends RepoOptions {
+  unresolve?: boolean;
+}
+
+/**
+ * Resolve task output shape
+ */
+interface ResolveTaskOutput {
+  taskId: number;
+  state: string;
+}
+
+/**
+ * Format resolve task result as human-readable text
+ */
+function formatResolveTaskText(data: ResolveTaskOutput, prId: number): string {
+  const action = data.state === "RESOLVED" ? "Resolved" : "Reopened";
+  return `${action} task #${data.taskId} on PR #${prId}`;
+}
+
+/**
+ * Resolve or unresolve a task
+ */
+export async function resolveTask(
+  prIdArg: string,
+  taskIdArg: string,
+  options: ResolveTaskOptions,
+): Promise<void> {
+  const prId = parsePrId(prIdArg);
+  const auth = await requireAuth();
+  const repo = await getRepo(options);
+
+  // Parse and validate task ID
+  const taskId = parseInt(taskIdArg, 10);
+  if (isNaN(taskId) || taskId <= 0) {
+    return outputError(`Invalid task ID: "${taskIdArg}". Must be a positive integer.`, 4);
+  }
+
+  const client = new ApiClient(auth.username, auth.appPassword);
+  const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/tasks/${taskId}`;
+
+  const newState = options.unresolve ? "UNRESOLVED" : "RESOLVED";
+
+  try {
+    const task = await client.put<Task>(endpoint, { state: newState });
+
+    const taskOutput: ResolveTaskOutput = {
+      taskId: task.id,
+      state: task.state,
+    };
+
+    output(formatResolveTaskText(taskOutput, prId), taskOutput);
+    process.exit(0);
+  } catch (error) {
+    handleApiError(error, repo, { prId, taskId });
   }
 }

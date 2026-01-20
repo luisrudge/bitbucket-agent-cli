@@ -1,7 +1,16 @@
 // bitbucket-agent-cli - Bitbucket CLI for coding agents
 import { program, type Command } from "commander";
 import { login, status, logout } from "./commands/auth.ts";
-import { list, view, comments, diff, create } from "./commands/pr.ts";
+import {
+  list,
+  view,
+  comments,
+  diff,
+  create,
+  addComment,
+  resolveComment,
+  resolveTask,
+} from "./commands/pr.ts";
 import { api } from "./commands/api.ts";
 import { setJsonOutput, outputError } from "./output.ts";
 
@@ -84,6 +93,46 @@ prCmd
   .option("-c, --close", "Close source branch after merge")
   .option("-r, --repo <repo>", "Workspace/repo (auto-detected from git remote)")
   .action(create);
+
+// PR comment subcommands
+const commentCmd = prCmd.command("comment").description("PR comment operations");
+
+commentCmd
+  .command("add <pr-id>")
+  .description("Add a comment or reply to a pull request")
+  .requiredOption("-m, --message <text>", "Comment content")
+  .option("-p, --parent <id>", "Parent comment ID (for replies)")
+  .option("-r, --repo <repo>", "Workspace/repo (auto-detected from git remote)")
+  .action(addComment);
+
+commentCmd
+  .command("resolve <pr-id> <comment-id>")
+  .description("Resolve a comment thread")
+  .option("-r, --repo <repo>", "Workspace/repo (auto-detected from git remote)")
+  .action(resolveComment);
+
+commentCmd
+  .command("unresolve <pr-id> <comment-id>")
+  .description("Reopen a resolved comment thread")
+  .option("-r, --repo <repo>", "Workspace/repo (auto-detected from git remote)")
+  .action((prId, commentId, options) =>
+    resolveComment(prId, commentId, { ...options, unresolve: true }),
+  );
+
+// PR task subcommands
+const taskCmd = prCmd.command("task").description("PR task operations");
+
+taskCmd
+  .command("resolve <pr-id> <task-id>")
+  .description("Resolve a task")
+  .option("-r, --repo <repo>", "Workspace/repo (auto-detected from git remote)")
+  .action(resolveTask);
+
+taskCmd
+  .command("unresolve <pr-id> <task-id>")
+  .description("Reopen a resolved task")
+  .option("-r, --repo <repo>", "Workspace/repo (auto-detected from git remote)")
+  .action((prId, taskId, options) => resolveTask(prId, taskId, { ...options, unresolve: true }));
 
 // API command
 program

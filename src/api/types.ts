@@ -151,3 +151,37 @@ export interface CreatePullRequestBody {
   description?: string;
   close_source_branch?: boolean;
 }
+
+/**
+ * Request body for creating a comment on a pull request
+ */
+export interface CreateCommentBody {
+  content: {
+    raw: string;
+  };
+  parent?: {
+    id: number;
+  };
+}
+
+/**
+ * Task state
+ */
+export type TaskState = "UNRESOLVED" | "RESOLVED";
+
+/**
+ * Pull request task
+ */
+export interface Task {
+  id: number;
+  state: TaskState;
+  content: CommentContent;
+  created_on: string;
+  updated_on: string;
+  resolved_on: string | null;
+  resolved_by: User | null;
+  creator: User;
+  comment?: {
+    id: number;
+  };
+}

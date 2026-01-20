@@ -139,6 +139,72 @@ export class ApiClient {
   }
 
   /**
+   * Make a PUT request with JSON body and return parsed JSON
+   * @param endpoint API endpoint path
+   * @param body Request body to send as JSON
+   * @returns Parsed JSON response
+   * @throws AuthError for 401 responses
+   * @throws NotFoundError for 404 responses
+   * @throws ForbiddenError for 403 responses
+   */
+  async put<T = unknown>(endpoint: string, body: unknown): Promise<T> {
+    const url = `${BASE_URL}${endpoint}`;
+
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        Authorization: this.authHeader,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+
+    const data: unknown = await response.json();
+    return data as T;
+  }
+
+  /**
+   * Make a DELETE request and return parsed JSON (or void for 204)
+   * @param endpoint API endpoint path
+   * @returns Parsed JSON response or undefined for 204
+   * @throws AuthError for 401 responses
+   * @throws NotFoundError for 404 responses
+   * @throws ForbiddenError for 403 responses
+   */
+  async delete<T = unknown>(endpoint: string): Promise<T | undefined> {
+    const url = `${BASE_URL}${endpoint}`;
+
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        Authorization: this.authHeader,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+
+    // 204 No Content or empty body returns nothing
+    const contentLength = response.headers.get("content-length");
+    if (response.status === 204 || contentLength === "0") {
+      return undefined;
+    }
+
+    const text = await response.text();
+    if (!text) {
+      return undefined;
+    }
+
+    return JSON.parse(text) as T;
+  }
+
+  /**
    * Make a GET request and return raw text (for diff endpoint)
    * @param endpoint API endpoint path
    * @returns Raw response text
