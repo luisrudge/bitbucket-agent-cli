@@ -25,28 +25,33 @@ description: Release a new version to npm and GitHub. Use when the user wants to
    git commit -m "chore: bump version to <new-version>"
    ```
 
-6. **Create git tag**:
+6. **Build the package** to ensure the new version is included:
+
+   ```bash
+   bun run build
+   ```
+
+7. **Create git tag**:
 
    ```bash
    git tag v<new-version>
    ```
 
-7. **Ask for npm OTP** using the question tool (user selects "Other" to enter code)
+8. **Ask for npm OTP** using the question tool (user selects "Other" to enter code)
 
-8. **Build and publish to npm**:
+9. **Publish to npm**:
 
    ```bash
-   bun run build
    npm publish --otp <otp-code>
    ```
 
-9. **Push commit and tag**:
+10. **Push commit and tag**:
 
-   ```bash
-   git push && git push --tags
-   ```
+    ```bash
+    git push && git push --tags
+    ```
 
-10. **Generate release notes**:
+11. **Generate release notes**:
     - Run `git log <previous-tag>..HEAD --oneline` to get commits since last release
     - Summarize the changes into human-readable release notes
     - Group by type (features, fixes, docs, etc.) if applicable
@@ -56,12 +61,12 @@ description: Release a new version to npm and GitHub. Use when the user wants to
       - For commits: `abc1234 by @username`
     - Get commit authors with: `git log <previous-tag>..HEAD --format="%h %s (%an)"`
 
-11. **Create GitHub release**:
+12. **Create GitHub release**:
 
     ```bash
     gh release create v<new-version> --notes "<generated-notes>"
     ```
 
-12. **Confirm success** and provide links to:
+13. **Confirm success** and provide links to:
     - GitHub release page
     - npm package page
