@@ -13,6 +13,7 @@ import {
 } from "./commands/pr.ts";
 import { api } from "./commands/api.ts";
 import { setJsonOutput, outputError } from "./output.ts";
+import pkg from "../package.json";
 
 // Re-export outputError for backwards compatibility
 export { outputError } from "./output.ts";
@@ -26,7 +27,7 @@ program.option("--json", "Output in JSON format").hook("preAction", (thisCommand
 program
   .name("bitbucket-agent-cli")
   .description("Bitbucket CLI for coding agents")
-  .version("0.1.0")
+  .version(pkg.version)
   .addHelpText(
     "after",
     `
