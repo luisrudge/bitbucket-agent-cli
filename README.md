@@ -6,7 +6,7 @@ Bitbucket CLI for AI agents (and maybe humans).
 
 ## Authentication
 
-Create an [App Password](https://bitbucket.org/account/settings/app-passwords/) with the following scopes:
+Create an [API Token](https://id.atlassian.com/manage-profile/security/api-tokens) with the following scopes:
 
 | Scope                         | Required for                                   |
 | ----------------------------- | ---------------------------------------------- |
@@ -18,10 +18,10 @@ Create an [App Password](https://bitbucket.org/account/settings/app-passwords/) 
 ```bash
 # Option 1: Environment variables
 export BB_USERNAME="your-username"
-export BB_APP_PASSWORD="your-app-password"
+export BB_API_TOKEN="your-api-token"
 
 # Option 2: OS Keychain via Bun.secrets
-bunx bitbucket-agent-cli@latest auth login --username your-username --app-password your-app-password
+bunx bitbucket-agent-cli@latest auth login --username your-username --api-token your-api-token
 ```
 
 The `auth login` command stores credentials in your OS keychain using [Bun.secrets](https://bun.sh/docs/runtime/secrets) (macOS Keychain, Windows Credential Manager, or Linux secret service).
@@ -30,7 +30,7 @@ The `auth login` command stores credentials in your OS keychain using [Bun.secre
 
 ```bash
 # Auth
-bunx bitbucket-agent-cli@latest auth login --username <user> --app-password <pass>
+bunx bitbucket-agent-cli@latest auth login --username <user> --api-token <token>
 bunx bitbucket-agent-cli@latest auth status
 bunx bitbucket-agent-cli@latest auth logout
 

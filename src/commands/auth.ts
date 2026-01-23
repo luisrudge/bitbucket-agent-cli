@@ -17,23 +17,30 @@ interface UserInfo {
  */
 interface LoginOptions {
   username: string;
-  appPassword: string;
+  apiToken?: string;
+  appPassword?: string; // Legacy alias for apiToken
 }
 
 /**
  * Login subcommand: validate and save credentials to OS keychain
  */
 export async function login(options: LoginOptions): Promise<void> {
-  const { username, appPassword } = options;
+  const { username, apiToken, appPassword } = options;
+
+  // Use apiToken if provided, otherwise fall back to legacy appPassword
+  const token = apiToken ?? appPassword;
+  if (!token) {
+    outputError("API token is required. Use --api-token or --app-password to provide it.", 4);
+  }
 
   // Validate credentials by calling GET /user
-  const client = new ApiClient(username, appPassword);
+  const client = new ApiClient(username, token);
 
   try {
     const user = await client.get<UserInfo>("/user");
 
     // Save to OS keychain
-    await setAuthInKeychain(username, appPassword);
+    await setAuthInKeychain(username, token);
 
     output(`Logged in as ${user.username}`, { success: true, user: user.username });
     process.exit(0);

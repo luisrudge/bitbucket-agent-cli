@@ -32,8 +32,8 @@ program
     "after",
     `
 Environment Variables:
-  BB_USERNAME      Bitbucket username
-  BB_APP_PASSWORD  Bitbucket app password
+  BB_USERNAME   Bitbucket username
+  BB_API_TOKEN  Bitbucket API token
 
 Exit Codes:
   0  Success
@@ -49,7 +49,8 @@ authCmd
   .command("login")
   .description("Save credentials")
   .requiredOption("-u, --username <username>", "Bitbucket username")
-  .requiredOption("-p, --app-password <password>", "Bitbucket app password")
+  .option("-t, --api-token <token>", "Bitbucket API token")
+  .option("-p, --app-password <password>", "Bitbucket API token (legacy alias for --api-token)")
   .action(login);
 
 authCmd.command("status").description("Check authentication status").action(status);

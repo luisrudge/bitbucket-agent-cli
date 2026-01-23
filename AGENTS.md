@@ -134,9 +134,10 @@ Credentials are stored in the OS keychain via [Bun.secrets](https://bun.sh/docs/
 
 ### Auth Resolution Order
 
-1. `BB_USERNAME` + `BB_APP_PASSWORD` env vars (highest priority)
-2. OS keychain via Bun.secrets
-3. Error with instructions
+1. `BB_USERNAME` + `BB_API_TOKEN` env vars (highest priority)
+2. `BB_USERNAME` + `BB_APP_PASSWORD` env vars (legacy fallback)
+3. OS keychain via Bun.secrets
+4. Error with instructions
 
 ## Bitbucket API
 
@@ -148,10 +149,10 @@ https://api.bitbucket.org/2.0
 
 ### Authentication
 
-Basic auth with app password:
+Basic auth with API token:
 
 ```typescript
-const auth = Buffer.from(`${username}:${appPassword}`).toString("base64");
+const auth = Buffer.from(`${username}:${apiToken}`).toString("base64");
 const response = await fetch(url, {
   headers: {
     Authorization: `Basic ${auth}`,
@@ -294,5 +295,5 @@ Commands that auto-detect repo need to run inside a git repo with a Bitbucket re
 ### API returns 401
 
 - Check credentials are correct
-- App password may have expired
-- App password may lack required permissions (account, repository, pullrequest)
+- API token may have expired
+- API token may lack required permissions (account, repository, pullrequest)

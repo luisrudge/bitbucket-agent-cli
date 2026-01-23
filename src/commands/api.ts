@@ -14,12 +14,12 @@ export async function api(endpoint: string): Promise<void> {
   const auth = await getAuth();
   if (!auth) {
     outputError(
-      "Authentication required. Run 'bitbucket-agent-cli auth login' or set BB_USERNAME and BB_APP_PASSWORD environment variables.",
+      "Authentication required. Run 'bitbucket-agent-cli auth login' or set BB_USERNAME and BB_API_TOKEN environment variables.",
       2,
     );
   }
 
-  const client = new ApiClient(auth.username, auth.appPassword);
+  const client = new ApiClient(auth.username, auth.apiToken);
 
   try {
     const response = await client.get<unknown>(normalizedEndpoint);

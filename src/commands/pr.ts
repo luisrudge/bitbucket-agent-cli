@@ -78,12 +78,12 @@ async function getRepo(options: RepoOptions): Promise<RepoInfo> {
  */
 async function requireAuth(): Promise<{
   username: string;
-  appPassword: string;
+  apiToken: string;
 }> {
   const auth = await getAuth();
   if (!auth) {
     return outputError(
-      "Authentication required. Run 'bitbucket-agent-cli auth login' or set BB_USERNAME and BB_APP_PASSWORD environment variables.",
+      "Authentication required. Run 'bitbucket-agent-cli auth login' or set BB_USERNAME and BB_API_TOKEN environment variables.",
       2,
     );
   }
@@ -122,7 +122,7 @@ function handleApiError(error: unknown, repo: RepoInfo, context?: ErrorContext |
   }
   if (error instanceof ForbiddenError) {
     outputError(
-      `Insufficient permissions to access ${repo.workspace}/${repo.repo}. Check your app password permissions.`,
+      `Insufficient permissions to access ${repo.workspace}/${repo.repo}. Check your API token permissions.`,
       2,
     );
   }
@@ -207,7 +207,7 @@ export async function list(options: ListOptions): Promise<void> {
     );
   }
 
-  const client = new ApiClient(auth.username, auth.appPassword);
+  const client = new ApiClient(auth.username, auth.apiToken);
   const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests?state=${lowerState.toUpperCase()}`;
 
   try {
@@ -293,7 +293,7 @@ export async function view(prIdArg: string, options: RepoOptions): Promise<void>
   const auth = await requireAuth();
   const repo = await getRepo(options);
 
-  const client = new ApiClient(auth.username, auth.appPassword);
+  const client = new ApiClient(auth.username, auth.apiToken);
   const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}`;
 
   try {
@@ -475,7 +475,7 @@ export async function comments(prIdArg: string, options: RepoOptions): Promise<v
   const auth = await requireAuth();
   const repo = await getRepo(options);
 
-  const client = new ApiClient(auth.username, auth.appPassword);
+  const client = new ApiClient(auth.username, auth.apiToken);
   const commentsEndpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/comments`;
   const tasksEndpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/tasks`;
 
@@ -537,7 +537,7 @@ export async function diff(prIdArg: string, options: RepoOptions): Promise<void>
   const auth = await requireAuth();
   const repo = await getRepo(options);
 
-  const client = new ApiClient(auth.username, auth.appPassword);
+  const client = new ApiClient(auth.username, auth.apiToken);
   const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/diff`;
 
   try {
@@ -604,7 +604,7 @@ async function getDefaultBranch(client: ApiClient, repo: RepoInfo): Promise<stri
 export async function create(options: CreateOptions): Promise<void> {
   const auth = await requireAuth();
   const repo = await getRepo(options);
-  const client = new ApiClient(auth.username, auth.appPassword);
+  const client = new ApiClient(auth.username, auth.apiToken);
 
   // Determine source branch
   let sourceBranch = options.source;
@@ -728,7 +728,7 @@ export async function addComment(prIdArg: string, options: AddCommentOptions): P
     }
   }
 
-  const client = new ApiClient(auth.username, auth.appPassword);
+  const client = new ApiClient(auth.username, auth.apiToken);
   const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/comments`;
 
   const body: CreateCommentBody = {
@@ -798,7 +798,7 @@ export async function resolveComment(
     return outputError(`Invalid comment ID: "${commentIdArg}". Must be a positive integer.`, 4);
   }
 
-  const client = new ApiClient(auth.username, auth.appPassword);
+  const client = new ApiClient(auth.username, auth.apiToken);
   const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/comments/${commentId}/resolve`;
 
   try {
@@ -861,7 +861,7 @@ export async function resolveTask(
     return outputError(`Invalid task ID: "${taskIdArg}". Must be a positive integer.`, 4);
   }
 
-  const client = new ApiClient(auth.username, auth.appPassword);
+  const client = new ApiClient(auth.username, auth.apiToken);
   const endpoint = `/repositories/${repo.workspace}/${repo.repo}/pullrequests/${prId}/tasks/${taskId}`;
 
   const newState = options.unresolve ? "UNRESOLVED" : "RESOLVED";

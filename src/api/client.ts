@@ -41,11 +41,11 @@ export class ApiClient {
   /**
    * Create a new API client
    * @param username Bitbucket username
-   * @param appPassword Bitbucket app password
+   * @param apiToken Bitbucket API token
    */
-  constructor(username: string, appPassword: string) {
+  constructor(username: string, apiToken: string) {
     // Create Basic auth header
-    const credentials = `${username}:${appPassword}`;
+    const credentials = `${username}:${apiToken}`;
     const encoded = Buffer.from(credentials).toString("base64");
     this.authHeader = `Basic ${encoded}`;
   }
