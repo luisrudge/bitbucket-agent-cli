@@ -1,5 +1,5 @@
 // bitbucket-agent-cli - Bitbucket CLI for coding agents
-import { program, type Command } from "commander";
+import { program, Option, type Command } from "commander";
 import { login, status, logout } from "./commands/auth.ts";
 import {
   list,
@@ -18,6 +18,33 @@ import pkg from "../package.json";
 // Re-export outputError for backwards compatibility
 export { outputError } from "./output.ts";
 
+// Build full command tree for help display
+function getCommandHelp(cmd: Command, prefix = ""): string[] {
+  const lines: string[] = [];
+  for (const sub of cmd.commands) {
+    const name = prefix ? `${prefix} ${sub.name()}` : sub.name();
+    // Get arguments from usage (e.g., "<pr-id>")
+    const args = sub.registeredArguments
+      .map((a) => (a.required ? `<${a.name()}>` : `[${a.name()}]`))
+      .join(" ");
+    const fullName = args ? `${name} ${args}` : name;
+    lines.push(`  ${fullName.padEnd(44)} ${sub.description()}`);
+
+    // Add options for leaf commands (commands with actions, not just subcommands)
+    const opts = sub.options.filter((o) => !o.hidden);
+    if (opts.length > 0 && sub.commands.length === 0) {
+      for (const opt of opts) {
+        const flags = opt.flags.padEnd(42);
+        const req = opt.mandatory ? " (required)" : "";
+        lines.push(`      ${flags} ${opt.description}${req}`);
+      }
+    }
+
+    lines.push(...getCommandHelp(sub, name));
+  }
+  return lines;
+}
+
 // Program setup
 program.option("--json", "Output in JSON format").hook("preAction", (thisCommand: Command) => {
   const opts = thisCommand.optsWithGlobals();
@@ -28,19 +55,17 @@ program
   .name("bitbucket-agent-cli")
   .description("Bitbucket CLI for coding agents")
   .version(pkg.version)
-  .addHelpText(
-    "after",
-    `
-Environment Variables:
-  BB_USERNAME   Bitbucket username
-  BB_API_TOKEN  Bitbucket API token
-
-Exit Codes:
-  0  Success
-  1  General error
-  2  Authentication required or failed
-  3  Not found (PR, repo, etc.)`,
-  );
+  .configureHelp({
+    formatHelp: (cmd, helper) => {
+      const title = `${cmd.name()} v${pkg.version} - ${cmd.description()}\n`;
+      const usage = `Usage: ${helper.commandUsage(cmd)}\n`;
+      const commands = `\nCommands:\n${getCommandHelp(cmd).join("\n")}\n`;
+      const options = `\nGlobal Options:\n  --json     Output in JSON format\n  -h, --help Display help\n  -V         Display version\n`;
+      const env = `\nEnvironment Variables:\n  BB_USERNAME   Bitbucket username\n  BB_API_TOKEN  Bitbucket API token\n`;
+      const exits = `\nExit Codes:\n  0  Success\n  1  General error\n  2  Authentication required or failed\n  3  Not found (PR, repo, etc.)\n`;
+      return title + usage + commands + options + env + exits;
+    },
+  });
 
 // Auth commands
 const authCmd = program.command("auth").description("Manage authentication");
@@ -50,7 +75,7 @@ authCmd
   .description("Save credentials")
   .requiredOption("-u, --username <username>", "Bitbucket username")
   .option("-t, --api-token <token>", "Bitbucket API token")
-  .option("-p, --app-password <password>", "Bitbucket API token (legacy alias for --api-token)")
+  .addOption(new Option("-p, --app-password <password>", "Legacy alias for --api-token").hideHelp())
   .action(login);
 
 authCmd.command("status").description("Check authentication status").action(status);
