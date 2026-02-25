@@ -118,6 +118,7 @@ prCmd
   .option("-d, --destination <branch>", "Destination branch (defaults to main)")
   .option("-m, --description <text>", "PR description")
   .option("-c, --close", "Close source branch after merge")
+  .option("--draft", "Create as draft pull request")
   .option("-r, --repo <repo>", "Workspace/repo (auto-detected from git remote)")
   .action(create);
 

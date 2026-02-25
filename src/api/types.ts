@@ -150,6 +150,7 @@ export interface CreatePullRequestBody {
   };
   description?: string;
   close_source_branch?: boolean;
+  draft?: boolean;
 }
 
 /**

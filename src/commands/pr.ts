@@ -558,6 +558,7 @@ interface CreateOptions extends RepoOptions {
   destination?: string;
   description?: string;
   close?: boolean;
+  draft?: boolean;
 }
 
 /**
@@ -655,6 +656,10 @@ export async function create(options: CreateOptions): Promise<void> {
 
   if (options.close) {
     body.close_source_branch = true;
+  }
+
+  if (options.draft) {
+    body.draft = true;
   }
 
   try {

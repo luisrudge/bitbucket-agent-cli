@@ -42,6 +42,7 @@ bunx bitbucket-agent-cli@latest pr comments 123                # Comments with t
 bunx bitbucket-agent-cli@latest pr diff 123                    # PR diff
 bunx bitbucket-agent-cli@latest pr create                      # Create PR from current branch to main
 bunx bitbucket-agent-cli@latest pr create -t "My PR" -d dev    # Create PR with title, targeting dev branch
+bunx bitbucket-agent-cli@latest pr create --draft              # Create PR as draft
 
 # Comments
 bunx bitbucket-agent-cli@latest pr comment add 123 -m "LGTM!"              # Add a comment
